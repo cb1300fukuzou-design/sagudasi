@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>サスペンション SAG調整ログ</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; margin: 0; padding: 12px; color: #333; }
+    .card { background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { font-size: 1.2rem; text-align: center; margin: 5px 0 12px; color: #111; }
+    h2 { font-size: 0.95rem; margin: 0 0 8px; color: #444; border-bottom: 2px solid #eee; padding-bottom: 4px; }
+    .guide { font-size: 0.85rem; line-height: 1.4; color: #555; }
+    .guide .target-f { color: #1976D2; font-weight: bold; }
+    .guide .target-r { color: #D32F2F; font-weight: bold; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .form-group { display: flex; flex-direction: column; margin-bottom: 6px; }
+    label { font-size: 0.8rem; color: #666; margin-bottom: 2px; }
+    input { padding: 8px; font-size: 0.95rem; border: 1px solid #ccc; border-radius: 6px; }
+    .result-box { background: #f8f9fa; border-radius: 8px; padding: 10px; margin-top: 5px; }
+    .result-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 2px; }
+    .result-val { font-size: 0.9rem; font-weight: bold; margin-top: 2px; }
+    .btn { display: block; width: 100%; padding: 12px; background: #4CAF50; color: #fff; text-align: center; font-weight: bold; border: none; border-radius: 8px; font-size: 1rem; margin-top: 10px; }
+  </style>
+</head>
+
+<body>
+
+  <h1>サスセッティング SAG調整ログ</h1>
+
+  <!-- ガイダンス -->
+  <div class="card">
+    <h2>基本調整ガイダンス (0G - 1G')</h2>
+    <div class="guide">
+      <div class="target-f">① フロント目標値： 30mm ～ 35mm</div>
+      <div class="target-r">② リア目標値    ： 20mm ～ 25mm</div>
+      <div style="margin-top:4px; font-size:0.78rem;">※目標より大 → 柔らかすぎ（締める） / 小 → 硬すぎ（緩める）</div>
+    </div>
+  </div>
+
+  <!-- 仕様設定 -->
+  <div class="card">
+    <h2>①〜⑥ 車両・サス仕様設定</h2>
+    <div class="form-group">
+      <label>① 日付</label>
+      <input type="text" id="entry_date">
+    </div>
+    <div class="grid">
+      <div class="form-group"><label>② 車両</label><input type="text" id="entry_bike" value="VTR250"></div>
+      <div class="form-group"><label>⑤ 油面</label><input type="text" id="entry_oil" value="100mm"></div>
+    </div>
+    <div class="form-group"><label>③ Fフォーク仕様</label><input type="text" id="entry_f_spec" value="オイル#15 / イニシャルキャップ"></div>
+    <div class="grid">
+      <div class="form-group"><label>④ Fバネレート</label><input type="text" id="entry_f_rate" value="純正"></div>
+      <div class="form-group"><label>⑥ Rバネレート</label><input type="text" id="entry_r_rate" value="純正"></div>
+    </div>
+    <div class="form-group"><label>リアサス仕様</label><input type="text" id="entry_r_spec" value="純正5段目"></div>
+  </div>
+
+  <!-- サグ計測値 -->
+  <div class="card">
+    <h2>⑦〜⑫ サグ計測値 (mm)</h2>
+    <div class="grid">
+      <div class="form-group"><label>⑦ F_0G (全伸び)</label><input type="number" id="f_0g" oninput="calcSag()"></div>
+      <div class="form-group"><label>⑧ F_1G' (1G乗車)</label><input type="number" id="f_1g_p" oninput="calcSag()"></div>
+    </div>
+    <div class="grid">
+      <div class="form-group"><label>⑩ R_0G (全伸び)</label><input type="number" id="r_0g" oninput="calcSag()"></div>
+      <div class="form-group"><label>⑪ R_1G' (1G乗車)</label><input type="number" id="r_1g_p" oninput="calcSag()"></div>
+    </div>
+  </div>
+
+  <!-- 診断結果 -->
+  <div class="card">
+    <h2>⑬〜⑭ 診断結果 & 調整目安</h2>
+    <div class="result-box">
+      <div class="result-title" style="color:#1976D2;" id="res_f_num">⑬ フロント算出値: -- mm</div>
+      <div class="result-val" id="res_f_status" style="color:#555;">└ 数値を入力してください</div>
+    </div>
+    <div class="result-box">
+      <div class="result-title" style="color:#D32F2F;" id="res_r_num">⑭ リア算出値: -- mm</div>
+      <div class="result-val" id="res_r_status" style="color:#555;">└ 数値を入力してください</div>
+    </div>
+  </div>
+
+  <button class="btn" onclick="downloadCSV()">CSVデータを出力・保存</button>
+
+  <script>
+    // 初期日付セット
+    const now = new Date();
+    document.getElementById('entry_date').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+    function calcSag() {
+      const f0 = parseFloat(document.getElementById('f_0g').value);
+      const f1p = parseFloat(document.getElementById('f_1g_p').value);
+      const r0 = parseFloat(document.getElementById('r_0g').value);
+      const r1p = parseFloat(document.getElementById('r_1g_p').value);
+
+      if (!isNaN(f0) && !isNaN(f1p)) {
+        const fCalc = f0 - f1p;
+        let fStatus = "", fColor = "";
+        if (fCalc >= 30 && fCalc <= 35) { fStatus = "適正範囲内 (OK)"; fColor = "#2E7D32"; }
+        else if (fCalc > 35) { fStatus = `柔らかすぎ (+${(fCalc-35).toFixed(1)}mm) → イニシャルを締める`; fColor = "#E65100"; }
+        else { fStatus = `硬すぎ (-${(30-fCalc).toFixed(1)}mm) → イニシャルを緩める`; fColor = "#C62828"; }
+        
+        document.getElementById('res_f_num').innerText = `⑬ フロント算出値: ${fCalc.toFixed(1)} mm`;
+        document.getElementById('res_f_status').innerText = `└ 調整目安: ${fStatus}`;
+        document.getElementById('res_f_status').style.color = fColor;
+      }
+
+      if (!isNaN(r0) && !isNaN(r1p)) {
+        const rCalc = r0 - r1p;
+        let rStatus = "", rColor = "";
+        if (rCalc >= 20 && rCalc <= 25) { rStatus = "適正範囲内 (OK)"; rColor = "#2E7D32"; }
+        else if (rCalc > 25) { rStatus = `柔らかすぎ (+${(rCalc-25).toFixed(1)}mm) → イニシャルを締める`; fColor = "#E65100"; }
+        else { rStatus = `硬すぎ (-${(20-rCalc).toFixed(1)}mm) → イニシャルを緩める`; rColor = "#C62828"; }
+
+        document.getElementById('res_r_num').innerText = `⑭ リア算出値: ${rCalc.toFixed(1)} mm`;
+        document.getElementById('res_r_status').innerText = `└ 調整目安: ${rStatus}`;
+        document.getElementById('res_r_status').style.color = rColor;
+      }
+    }
+
+    function downloadCSV() {
+      const date = document.getElementById('entry_date').value;
+      const bike = document.getElementById('entry_bike').value;
+      const fSpec = document.getElementById('entry_f_spec').value;
+      const fRate = document.getElementById('entry_f_rate').value;
+      const oil = document.getElementById('entry_oil').value;
+      const rSpec = document.getElementById('entry_r_spec').value;
+      const rRate = document.getElementById('entry_r_rate').value;
+      const f0 = document.getElementById('f_0g').value;
+      const f1p = document.getElementById('f_1g_p').value;
+      const r0 = document.getElementById('r_0g').value;
+      const r1p = document.getElementById('r_1g_p').value;
+
+      const fCalc = (f0 && f1p) ? (parseFloat(f0) - parseFloat(f1p)).toFixed(1) : "";
+      const rCalc = (r0 && r1p) ? (parseFloat(r0) - parseFloat(r1p)).toFixed(1) : "";
+
+      const csvHeader = "①日付,②車両,③フロントフォーク仕様,④フロントフォークバネレート,⑤油面,リアサス仕様,⑥リアサスバネレート,⑦F_0G,⑧F_1G',⑨F_SAG,⑩R_0G,⑪R_1G',⑫R_SAG,⑬F_0G-F_1G'算出し数値,⑭R_0G-R_1G'算出し数値\n";
+      const csvRow = `"${date}","${bike}","${fSpec}","${fRate}","${oil}","${rSpec}","${rRate}","${f0}","${f1p}","${fCalc}","${r0}","${r1p}","${rCalc}","${fCalc}","${rCalc}"\n`;
+
+      const blob = new Blob(["\uFEFF" + csvHeader + csvRow], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `sag_log_${date.substring(0,10)}.csv`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
